@@ -1,15 +1,14 @@
 import illustris_python as il
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn
 import pandas as pd
-from scipy.stats import binned_statistic_2d
 import os
+from matplotlib import cm
 import tqdm
 
 class HaloObj: # Class of Halo Objects
     
-    def __init__(self, hID, sID, bPATH):
+    def __init__(self, hID, sID, bPATH, mkdir=False):
         """
         """
         self.haloID = hID
@@ -30,6 +29,15 @@ class HaloObj: # Class of Halo Objects
         self.CM = halo['GroupCM']
 
         self.R200 = halo['Group_R_TopHat200']  
+        self.mkdir = mkdir
+        
+        if self.mkdir == True:
+            target_PATH = "s%s_h%s" % (self.snapshotID, self.haloID)
+            isExist = os.path.exists(target_PATH)
+            print(isExist)
+            if not isExist:
+                os.makedirs(target_PATH)
+                print("New directory made")
     
 
     def calculate_relative(self, particleType: str):
@@ -163,19 +171,31 @@ class HaloObj: # Class of Halo Objects
 
     def veloPlot(self, particleType, bin_num, axis=2):
         c, mv, vv, bs = self.binning(particleType, bin_num)
-
+        
         norm_factor = np.max(bs)
-        mv_normed = mv/np.nanmax(np.linalg.norm(mv, axis=1))*norm_factor
+        limC = np.max(np.abs(c)) + norm_factor
+
+        mv_normed = mv/np.nanmax(np.linalg.norm(mv, axis=1)) * norm_factor * 1.5
+        
+        cw = cm.get_cmap('coolwarm', 24)
+        vv_color = (vv - np.nanmin(vv))/np.nanmax(vv-np.nanmin(vv))
 
         plt.figure(figsize=(10,10), dpi=300)
+        ax = plt.gca()
+        ax.set_facecolor("silver")
         for i, p in tqdm.tqdm(enumerate(c)):
             x = (p - mv_normed[i]/2)[0]
             y = (p - mv_normed[i]/2)[1]
             dx = mv_normed[i][0]
             dy = mv_normed[i][1]
             #print(x,y,dx,dy)
-            plt.grid()
-            plt.xlim(-1200, 1200)
-            plt.ylim(-1200, 1200)
+            ax.set_xlim(-limC, limC)
+            ax.set_ylim(-limC, limC)
             #plt.quiver(x,y,dx,dy, color="black", alpha=0.7);
-            plt.plot([x,x+dx], [y,y+dy], alpha=0.7, color="darkcyan")
+            ax.plot([x,x+dx], [y,y+dy], color=cw(vv_color)[i], lw=1.05)
+            ax.scatter(x+dx, y+dy, marker=".", s=15, color="black")
+            ax.grid()
+
+        ax.set_title("S%s H%s, axis=%s, particle=%s" % (self.snapshotID, self.haloID, axis, particleType) , fontsize=20)
+        ax.set_xlabel('$\Delta$x [ckpc/h]', fontsize = 15)
+        ax.set_ylabel('$\Delta$y [ckpc/h]', fontsize = 15)
