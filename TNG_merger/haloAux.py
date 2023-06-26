@@ -166,8 +166,22 @@ class HaloObj:  # Class of Halo Objects
 
         return fig, ax
 
-    def binning(self, particleType, bin_num, axis=2):
+    def binning(self, particleType, bin_num, axis:int=2, sli:np.float64=False):
         relaV, relaR = self.calculate_relative(particleType)
+
+        if sli:
+            if axis == 0:
+                slice_mask = (relaR[:,0]>-sli) &i (relaR[:,0]<sli)
+            elif axis == 1:
+                slice_mask = (relaR[:,1]>-sli) & (relaR[:,1]<sli)
+            elif axis == 2:
+                slice_mask = (relaR[:,2]>-sli) & (relaR[:,2]<sli)
+            else: pass
+            # print(slice_mask)
+            
+            relaR = relaR[slice_mask]
+            relaV = relaV[slice_mask]
+            
         min_values = np.min(relaR, axis=0)
         max_values = np.max(relaR, axis=0)
         area = max_values - min_values
@@ -179,25 +193,27 @@ class HaloObj:  # Class of Halo Objects
         if axis == 0:
             relaR = np.array([relaR[:, 1], relaR[:, 2]]).T
             area = np.array([area[1], area[2]])
-            initialR = np.array(min_values[1], min_values[2])
+            initialR = np.array([min_values[1], min_values[2]])
         elif axis == 1:
             relaR = np.array([relaR[:, 0], relaR[:, 2]]).T
             area = np.array([area[0], area[2]])
-            initialR = np.array(min_values[0], min_values[2])
+            initialR = np.array([min_values[0], min_values[2]])
         elif axis == 2:
             relaR = np.array([relaR[:, 0], relaR[:, 1]]).T
             area = np.array([area[0], area[1]])
-            initialR = np.array(min_values[0], min_values[1])
+            initialR = np.array([min_values[0], min_values[1]])
         else:
             pass
 
         binsize = area / bin_num
-        print(binsize)
+        print("binsize:", binsize)
         print(relaR.shape)
+        print(initialR)
 
         vert_velo = []
         centerP = []
         meanvelo = []
+        numP = []
 
         for i in tqdm.tqdm(range(bin_num[0])):
             for j in range(bin_num[1]):
@@ -207,6 +223,8 @@ class HaloObj:  # Class of Halo Objects
 
                 mask = np.all((relaR >= mm) & (relaR < MM), axis=1)
                 particle_in_bin = relaV[mask]
+                numP.append(len(particle_in_bin))
+                
                 # print(len(particle_in_bin))
 
                 binned_V = np.mean(particle_in_bin, axis=0)
@@ -227,16 +245,17 @@ class HaloObj:  # Class of Halo Objects
         centerP = np.array(centerP)
         meanvelo = np.array(meanvelo)
         vert_velo = np.array(vert_velo)
+        numP = np.array(numP)
 
-        return centerP, meanvelo, vert_velo, binsize
+        return centerP, meanvelo, vert_velo, binsize, numP
 
-    def veloPlot(self, particleType, bin_num, axis=2):
-        c, mv, vv, bs = self.binning(particleType, bin_num)
+    def veloGrid(self, particleType, bin_num, axis=2, sli=False):
+        c, mv, vv, bs, Np = self.binning(particleType, bin_num, sli=sli)
 
         norm_factor = np.max(bs)
         limC = np.max(np.abs(c)) + norm_factor
 
-        mv_normed = mv / np.nanmax(np.linalg.norm(mv, axis=1)) * norm_factor * 1.5
+        mv_normed = mv / np.nanmax(np.linalg.norm(mv, axis=1)) * norm_factor * 1.03
 
         cw = cm.get_cmap("coolwarm", 24)
         vv_color = (vv - np.nanmin(vv)) / np.nanmax(vv - np.nanmin(vv))
@@ -258,10 +277,11 @@ class HaloObj:  # Class of Halo Objects
             ax.grid()
 
         ax.set_title(
-            "S%s H%s, axis=%s, particle=%s"
-            % (self.snapshotID, self.haloID, axis, particleType),
+            "S%s H%s, axis=%s, particle=%s, slice=%s"
+            % (self.snapshotID, self.haloID, axis, particleType, sli),
             fontsize=20,
         )
         ax.set_xlabel("$\Delta$x [ckpc/h]", fontsize=15)
         ax.set_ylabel("$\Delta$y [ckpc/h]", fontsize=15)
+        
 
