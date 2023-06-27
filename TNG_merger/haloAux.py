@@ -248,10 +248,95 @@ class HaloObj:  # Class of Halo Objects
         numP = np.array(numP)
 
         return centerP, meanvelo, vert_velo, binsize, numP
+    
+    def binning_fixed(self, particleType, bin_num=np.array([30,30]), frame_size=np.array([2400,2400]), axis:int=2, sli:np.float64=False):
+        relaV, relaR = self.calculate_relative(particleType)
 
-    def veloGrid(self, particleType, bin_num, axis=2, sli=False):
-        c, mv, vv, bs, Np = self.binning(particleType, bin_num, sli=sli)
+        if sli:
+            if axis == 0:
+                slice_mask = (relaR[:,0]>-sli) &i (relaR[:,0]<sli)
+            elif axis == 1:
+                slice_mask = (relaR[:,1]>-sli) & (relaR[:,1]<sli)
+            elif axis == 2:
+                slice_mask = (relaR[:,2]>-sli) & (relaR[:,2]<sli)
+            else: pass
+            # print(slice_mask)
+            
+            relaR = relaR[slice_mask]
+            relaV = relaV[slice_mask]
+            
+        min_values = -0.5 * frame_size
+        max_values = 0.5 * frame_size
+        area = max_values - min_values
 
+        # sample_ind = (np.random.randint(0, len(max_values), sampleSize))
+        # relaR = relaR[sample_ind]
+        # relaV = relaV[sample_ind]
+
+        if axis == 0:
+            relaR = np.array([relaR[:, 1], relaR[:, 2]]).T
+            area = np.array([area[1], area[2]])
+            initialR = np.array([min_values[1], min_values[2]])
+        elif axis == 1:
+            relaR = np.array([relaR[:, 0], relaR[:, 2]]).T
+            area = np.array([area[0], area[2]])
+            initialR = np.array([min_values[0], min_values[2]])
+        elif axis == 2:
+            relaR = np.array([relaR[:, 0], relaR[:, 1]]).T
+            area = np.array([area[0], area[1]])
+            initialR = np.array([min_values[0], min_values[1]])
+        else:
+            pass
+
+        binsize = area / bin_num
+        print("binsize:", binsize)
+        print(relaR.shape)
+        print(initialR)
+
+        vert_velo = []
+        centerP = []
+        meanvelo = []
+        numP = []
+
+        for i in tqdm.tqdm(range(bin_num[0])):
+            for j in range(bin_num[1]):
+                mm = initialR + np.array([i * binsize[0], j * binsize[1]])
+                MM = initialR + np.array([(i + 1) * binsize[0], (j + 1) * binsize[1]])
+                centerP.append((mm + MM) / 2)
+
+                mask = np.all((relaR >= mm) & (relaR < MM), axis=1)
+                particle_in_bin = relaV[mask]
+                numP.append(len(particle_in_bin))
+                
+                # print(len(particle_in_bin))
+
+                binned_V = np.mean(particle_in_bin, axis=0)
+
+                if axis == 0:
+                    meanvelo.append([binned_V[1], binned_V[2]])
+                    vert_velo.append(binned_V[0])
+                elif axis == 1:
+                    meanvelo.append([binned_V[0], binned_V[2]])
+                    vert_velo.append(binned_V[1])
+                elif axis == 2:
+                    meanvelo.append([binned_V[0], binned_V[1]])
+                    vert_velo.append(binned_V[2])
+
+                else:
+                    pass
+
+        centerP = np.array(centerP)
+        meanvelo = np.array(meanvelo)
+        vert_velo = np.array(vert_velo)
+        numP = np.array(numP)
+
+        return centerP, meanvelo, vert_velo, binsize, numP
+
+    def veloGrid(self, particleType, bin_num, fixframe=False, frame_size=np.array([2400,2400]), axis=2, sli=False):
+        if fixframe:
+            c, mv, vv, bs, Np = self.binning_fixed(particleType, bin_num=bin_num, frame_size=frame_size, sli=sli)
+        else:
+            c, mv, vv, bs, Np = self.binning(particleType, bin_num, sli=sli)
         norm_factor = np.max(bs)
         limC = np.max(np.abs(c)) + norm_factor
 
